@@ -17,17 +17,16 @@ from torch.utils.data import Dataset, DataLoader, sampler
 import torchvision
 import torchvision.transforms as transforms
 
-#DATA_DIRECTORY = "C:/Users/Anya/Documents/ai4good/face-emotion-analysis/facial_expressions/images/sortedByEmotion/"
-TRAIN_DATA_DIR = "C:/Users/Anya/Documents/ai4good/face-emotion-analysis/fer2013/Data_Images_Facial_Expressions/Training_Others/"
+TRAIN_DATA_DIR = "C:/Users/Anya/Documents/ai4good/face-emotion-analysis/fer2013/Data_Images_Facial_Expressions/Training_Others_Small/"
 VALIDATE_DATA_DIR = "C:/Users/Anya/Documents/ai4good/face-emotion-analysis/fer2013/Data_Images_Facial_Expressions/PrivateTest_Others/"
-BATCH_SIZE = 10
+BATCH_SIZE = 35
 
 TMP_DIR = "C:/Users/Anya/Documents/ai4good/face-emotion-analysis/tmp/"
 
 IMAGE_WIDTH = 48
 IMAGE_HEIGHT = 48
 
-NUM_CLASSES = 5 #6 for multiclass classifier (we are excluding disgust class)
+NUM_CLASSES = 6 #6 for multiclass classifier (we are excluding disgust class)
 
 # TODO:
 #       implement weighted max / loss function? to account for uneven training class sizes
@@ -72,14 +71,12 @@ validate_loader = torch.utils.data.DataLoader(validate_data, batch_size=BATCH_SI
 
 # image0, target0 = train_data[0]
 # print(image0)
-# print(image0.shape)
+# print(image0.shape)         #[1,48,48]
 # print()
 # #print(image0[0,:,:])
 # #image0 = image0[0,:,:]
-# # print(image0.shape)         # [3, 350, 350]
-# # print(target0)
 # image0 = image0.squeeze()
-# print(image0.shape)         # [3, 350, 350]
+# print(image0.shape)         # [48,48]
 
 # # image0Transposed = np.transpose(image0, (1,2,0))
 # # print(image0Transposed.shape)
@@ -110,7 +107,7 @@ class cnn(nn.Module):
 
         self.block1 = nn.Sequential(
             nn.Conv2d(in_channels = 1,  # 1, because grayscale
-                out_channels = 16,      # model chooses 16 filters
+                out_channels = 6,      # model chooses 16 filters
                 kernel_size = KERNEL_SIZE_CONV,
                 stride = STRIDE,
                 padding = PADDING),
@@ -118,8 +115,8 @@ class cnn(nn.Module):
         )
 
         self.block2 = nn.Sequential(
-            nn.Conv2d(in_channels = 16, # convention: use powers of 2
-                out_channels = 32,
+            nn.Conv2d(in_channels = 6, # convention: use powers of 2
+                out_channels = 12,
                 kernel_size = KERNEL_SIZE_CONV,
                 stride = STRIDE,
                 padding = PADDING),
@@ -127,29 +124,29 @@ class cnn(nn.Module):
         )
 
         self.block3 = nn.Sequential(
-            nn.Conv2d(in_channels = 32,
-                out_channels = 64,
+            nn.Conv2d(in_channels = 12,
+                out_channels = 24,
                 kernel_size = KERNEL_SIZE_CONV,
                 stride = STRIDE,
-                padding = PADDING)<
+                padding = PADDING),
             nn.MaxPool2d(kernel_size = KERNEL_SIZE_POOL)) # now image is 12/2 = 6
 
         self.block4 = nn.Sequential(
-            nn.Linear(2304, NUM_CLASSES)    # in=6*6*64=2304, out=7 (7 possible emotions)
+            nn.Linear(864, NUM_CLASSES)    # in=6*6*24=864, out=7 (7 possible emotions)
         )
 
     def forward(self, x):
         out = self.block1(x)
         out = self.block2(out)
         out = self.block3(out)
-        out = out.view(-1, 2304)   # flatten for nn.Linear
+        out = out.view(-1, 864)   # flatten for nn.Linear
         return self.block4(out)
 
 model = cnn()
 
 # DEFINE OPTIMIZER AND CRITERION
 
-learning_rate = 0.015
+learning_rate = 0.03
 print("learning rate = {}".format(learning_rate))
 
 optimizer = optim.SGD(model.parameters(), lr=learning_rate) # Use Adam() or SGD()
@@ -165,7 +162,7 @@ model.train()
 
 t0 = time.time()
 total_loss = []
-num_epochs = 15
+num_epochs = 20
 
 best_epoch_loss = 10000 # arbitrary large number
 best_epoch_num = 0
