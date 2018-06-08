@@ -44,6 +44,7 @@ print("Made it through loading...\n")
 face_cnn = FaceCNN()
 criterion = nn.CrossEntropyLoss()
 learning_rate = 0.001
+
 # POTENTIAL SOLUTIONS 
 # try smaller kernel size (did not work) 
 # can try outputting a probabiltiy instead of 1 hot. sigmoid
@@ -52,6 +53,9 @@ learning_rate = 0.001
 # try changing batch size... -> smaller first? (did not work)
 # dropout helps with noise, but maybe 2 small
 # try sampling at each epoch from larger set. helps w robust
+
+check_pt = {}
+best = 100
 optimizer = torch.optim.Adam(face_cnn.parameters(), lr = learning_rate)
 num_epochs = 30
 for epoch in range(num_epochs):
@@ -66,7 +70,12 @@ for epoch in range(num_epochs):
 		train_loss += loss.data[0]
 		n_iter += 1
 	print("Epoch: {}/{}, Loss: {:.4f}".format(epoch+1, num_epochs, train_loss/n_iter))
+	if (train_loss/n_iter < best):
+                best = train_loss/n_iter
+                check_pt['state_dict'] = face_cnn.state_dict()
+                check_pt['epoch'] = epoch+1
 
+torch.save(check_pt['state_dict'], 'best_binary.pth')
 
 face_cnn.eval()
 correct = 0
