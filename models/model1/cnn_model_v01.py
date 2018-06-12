@@ -1,5 +1,5 @@
 # This model uses batchnorm and dropout with p=0.7, to try to prevent overfitting.
-# After training on a smaller dataset for 100 epochs, validation accuracy of ~36% was achieved
+# After training on a smaller dataset for 100 epochs, validation accuracy of ~37% was achieved
 # (lr=0.2, batchsize=100, optimizer=SGD, criterion=crossEntropyLoss)
 # TODO: Training for more epochs may improve accuracy.
 
