@@ -26,12 +26,11 @@ TMP_DIR = "C:/Users/Anya/Documents/ai4good/face-emotion-analysis/tmp/"
 IMAGE_WIDTH = 48
 IMAGE_HEIGHT = 48
 
-NUM_CLASSES = 6 #6 for multiclass classifier (we are excluding disgust class)
+NUM_CLASSES = 6 #(we are excluding disgust class)
 
 # TODO:
 #       implement weighted max / loss function? to account for uneven training class sizes
 #       try saving model (pickle it), and in seperate file loading model and using it to classify one (or a few) images
-#       evaluate using BEST model: currently not working
 #       PROBLEM: sometimes loss goes to NAN if learning rate too high and/or too many epochs. Why? Ask JP. How to fix. Want to do validation from model at epoch with best loss
 
 ############################################################
@@ -135,7 +134,7 @@ class cnn(nn.Module):
         #     # No pooling layer this time
 
         self.block5 = nn.Sequential(
-            nn.Linear(4608, NUM_CLASSES)    # in=6*6*128=4608, out=7 (7 possible emotions)
+            nn.Linear(4608, NUM_CLASSES)    # in=6*6*64=2304, out=7 (7 possible emotions)
         )
 
     def forward(self, x):
@@ -162,7 +161,46 @@ criterion = nn.CrossEntropyLoss() # lost / cost function
 
 ############################################################
 #
-# Define function to compute validation losses
+# FUNCTIONS: PLOT LEARNING CURVE
+#
+############################################################
+
+def plot_learning_curve(training_losses, validation_losses):
+    plt.title("Learning Curve (Loss vs time)")
+    plt.ylabel("Loss")
+    plt.xlabel("Training Steps (Epochs)")
+    plt.plot(training_losses, label="training")
+    plt.plot(validation_losses, label="validation")
+    plt.legend(loc=1)
+
+def plot_accuracies(training_accuracies, validation_accuracies):
+    plt.title("Training and Validation Accuracies over time")
+    plt.ylabel("Accuracy")
+    plt.xlabel("Training Steps (Epochs)")
+    plt.plot(training_accuracies, label="training")
+    plt.plot(validation_accuracies, label="validation")
+    plt.legend(loc=1)
+
+def make_plots(training_losses, validation_losses, training_accuracies, validation_accuracies, show_graph=False, epoch_num=None):
+    #training_losses = [10,9,8,7,5.5,4,3,2,1]
+    #validation_losses = [10,9,8,7,5.5,4.5,3.5,2.5,1.5]
+    plt.figure(figsize=(10,5))
+    plt.subplot(1,2,1)
+    plot_learning_curve(training_losses, validation_losses)
+    plt.subplot(1,2,2)
+    plt.tight_layout(pad=1.1, w_pad=3.0, h_pad=3.0)
+    plot_accuracies(training_accuracies, validation_accuracies)
+    fig = plt.gcf()
+    if epoch_num == None:
+        fig.savefig("tmp/plot-checkpoint-final.png")
+    else:
+        fig.savefig("tmp/plot-checkpoint-{}-epochs.png".format(epoch_num))
+    if show_graph:
+        plt.show()
+
+############################################################
+#
+# FUNCTION: COMPUTE VALIDATION LOSS
 #
 ############################################################
 
@@ -180,19 +218,16 @@ def compute_validation_loss(valModel):
     n_iter = 0
 
     for i, (images, targets) in enumerate(validate_loader):
-        #print(i)
 
         # Forward pass
         outputs = valModel(images)
         loss = criterion(outputs, targets)
-        #total_loss.append(loss)
-        #total_loss += loss
 
-        #_, predicted = torch.max(outputs.data, 1)
+        _, predicted = torch.max(outputs.data, 1)
 
         # Statistics
-        # total += targets.size(0)
-        # correct += (predicted == targets).sum()
+        total += targets.size(0)
+        correct += (predicted == targets).sum()
         val_loss += loss.data.item()
 
         # del(outputs)
@@ -207,20 +242,12 @@ def compute_validation_loss(valModel):
         n_iter += 1
 
     epoch_loss = val_loss/n_iter
+    accuracy = 100 * correct/total
     # print('Accuracy on the validation set: {}%'.format(100 * correct/total))
     # print(classifications_matrix)
     # for i in range(NUM_CLASSES):
     #     print("Accuracy of {}'s: {}".format(i, classifications_matrix[i][i] /sum(classifications_matrix[i])))
-    return epoch_loss
-
-#..............................
-#..............................
-#..............................
-#..............................
-#..............................
-#..............................
-#..............................
-#..............................
+    return [epoch_loss, accuracy]
 
 
 ############################################################
@@ -233,10 +260,13 @@ model.train()
 
 t0 = time.time()
 #total_loss = []
-num_epochs = 40
+num_epochs = 100
 
 training_losses = []
 validation_losses = []
+
+training_accuracies = []
+validation_accuracies = []
 
 best_epoch_loss = 10000 # arbitrary large number
 best_epoch_num = 0
@@ -246,13 +276,15 @@ elapsedTime = None
 
 for epoch in range(num_epochs):
 
-    if epoch == 14: # on 15th epoch, lower the learning rate
-        learning_rate = 0.01
-        optimizer = optim.SGD(model.parameters(), lr=learning_rate)
-        print("***Reduced learning rate to {}***".format(learning_rate))
+    # if epoch == 14: # on 15th epoch, lower the learning rate
+    #     learning_rate = 0.01
+    #     optimizer = optim.SGD(model.parameters(), lr=learning_rate)
+    #     print("***Reduced learning rate to {}***".format(learning_rate))
 
     train_loss = 0
     n_iter = 0
+    total = 0
+    correct = 0
 
     for images, targets in train_loader:
 
@@ -262,8 +294,6 @@ for epoch in range(num_epochs):
         # Forward pass (training)
         outputs = model(images)
         loss = criterion(outputs, targets)
-        #loss_eval = criterion()
-        #total_loss.append(loss)
 
         # Backward pass
         loss.backward()
@@ -274,46 +304,44 @@ for epoch in range(num_epochs):
         # Statistics
         train_loss += loss.data.item()
         n_iter += 1
+        _, predicted = torch.max(outputs.data, 1)
+        total += targets.size(0)
+        correct += (predicted == targets).sum()
 
     epoch_loss = train_loss/n_iter
     #print("loss={}, train_loss={}, n_iter={}, epoch_loss={}".format(loss, train_loss, n_iter, epoch_loss))
 
+    epoch_accuracy = 100 * correct/total
+    training_accuracies.append(epoch_accuracy)
+
     #torch.save(model.state_dict(), 'currentTrainingWeights.pt') 
-    # Compute validation loss
     #del(outputs)
-    val_loss = compute_validation_loss(model)
-    #val_loss = 1
+
+    # Compute validation metrics (loss, accuracy)
+    val_loss, val_accuracy = compute_validation_loss(model)
     model.train()
 
-
     elapsedTime = time.time() - t0
-
-
-
 
     print('Epoch: {}/{}, Train Loss: {:.4f}\tVal Loss: {:.4f}\tTime Elapsed:  {} minutes {:.4f} seconds'.format(
         epoch+1, num_epochs, epoch_loss, val_loss, int(elapsedTime//60), elapsedTime % 60))
     training_losses.append(epoch_loss)
 
-
-    
-
     validation_losses.append(val_loss)
+    validation_accuracies.append(val_accuracy)
 
-    if epoch == 0:
-        best_epoch_loss = epoch_loss
-        best_epoch_num = 0
-        best_state_dict = model.state_dict()
-        print("bestEpoch = {}".format(best_epoch_num + 1))
-        torch.save(model.state_dict(), 'bestTrainingWeights.pt')     #todo: remove. not best solution
-
-    elif epoch_loss < best_epoch_loss:
+    if epoch == 0 or epoch_loss < best_epoch_loss:
         best_epoch_loss = epoch_loss
         best_epoch_num = epoch
         best_state_dict = model.state_dict()
         print("bestEpoch = {}".format(best_epoch_num + 1))
-        torch.save(model.state_dict(), 'bestTrainingWeights.pt')     #todo: remove. not best solution
+        torch.save(model.state_dict(), 'bestTrainingWeights.pt')     #save weights for model with best training loss. #todo: improve; not best solution
     
+    # Save learning curve and accuracy plots every 3 epochs (checkpoint)
+    if (epoch + 1) % 1 == 0:
+        make_plots(training_losses, validation_losses, training_accuracies, validation_accuracies, show_graph=False, epoch_num=epoch + 1)
+
+
 print()
 print("Total Time Elapsed: {} minutes {:.4f} seconds".format(int(elapsedTime//60), elapsedTime % 60))
 
@@ -330,26 +358,8 @@ pickle.dump(bestModelDict, open(os.path.join(TMP_DIR, "bestModelDict.p"), "wb"))
 # model = CNN()
 # model.load_state_dict(torch.load('Trained_Model.pth'))
 
-############################################################
-#
-# PLOT LEARNING CURVE
-#
-############################################################
+make_plots(training_losses, validation_losses, training_accuracies, validation_accuracies, show_graph=True)
 
-def plot_learning_curve(training_losses, validation_losses):
-    plt.figure(figsize=(10,10))
-    plt.title("Learning Curve (Loss vs time)")
-    plt.ylabel("Loss")
-    plt.xlabel("Training Steps")
-    plt.plot(training_losses, label="training")
-    plt.plot(validation_losses, label="validation")
-    plt.legend(loc=1)
-    plt.show()
-
-
-#training_losses = [10,9,8,7,5.5,4,3,2,1]
-#validation_losses = [10,9,8,7,5.5,4.5,3.5,2.5,1.5]
-plot_learning_curve(training_losses, validation_losses)
 
 ############################################################
 #
@@ -362,7 +372,7 @@ model = cnn()
 # model.load_state_dict(best_state_dict)
 model.load_state_dict(torch.load('bestTrainingWeights.pt'))
 
-#classifications = {classID: [0]*NUM_CLASSES for classID in range(NUM_CLASSES)} # adjacency matrix to see which what misclassified labels are being missclassified as
+# classifications = {classID: [0]*NUM_CLASSES for classID in range(NUM_CLASSES)} # adjacency matrix to see which what misclassified labels are being missclassified as
 # classifications_matrix [[0]*NUM_CLASSES]*NUM_CLASSES # adjacency matrix to see which what misclassified labels are being missclassified as
 #                                                 # row i will contain what true labels i were classified as
 #                                                 # columns contain all possible labels (0 .. NUM_CLASSES)
@@ -404,6 +414,7 @@ print()
 ########################################################################################################
 ########################################################################################################
 ########################################################################################################
+# TODO: Remove this section below
 
 class_correct = list(0. for i in range(NUM_CLASSES))
 class_total = list(0. for i in range(NUM_CLASSES))
