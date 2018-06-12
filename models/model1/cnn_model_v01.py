@@ -3,6 +3,12 @@
 # (lr=0.2, batchsize=100, optimizer=SGD, criterion=crossEntropyLoss)
 # TODO: Training for more epochs may improve accuracy.
 
+NUM_CLASSES = 6
+KERNEL_SIZE_CONV = 5
+STRIDE = 1
+PADDING = 2
+KERNEL_SIZE_POOL = 2
+
 class cnn(nn.Module):
     def __init__(self):
         super(cnn, self).__init__()
