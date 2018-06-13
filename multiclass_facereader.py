@@ -11,10 +11,9 @@ import torch.nn as nn
 import torch.nn.functional as F
 #from face_cnn import FaceCNN
 from cnn_model_v01 import cnn
+from globalcontrast import GCNorm
 trans = transforms.Compose([transforms.ToPILImage(), transforms.Resize((48, 48)),
-                            transforms.Grayscale(), transforms.ToTensor(),
-                            transforms.Normalize([0],[1])])
-
+                            transforms.Grayscale(), GCNorm()])
 #face_cnn = FaceCNN()
 face_cnn = cnn()
 #face_cnn.load_state_dict(torch.load('best_binary.pth'))
@@ -61,14 +60,12 @@ while True:
         if (pred == 0):
             text = "Angry"
         elif (pred == 1):
-            text = "Disgusted"
-        elif (pred == 2):
             text = "Afraid"
-        elif (pred == 3):
+        elif (pred == 2):
             text = "Happy"
-        elif (pred == 4):
+        elif (pred == 3):
             text = "Sad"
-        elif (pred == 5):
+        elif (pred == 4):
             text = "Surprised"
         else:
             text = "Neutral"
