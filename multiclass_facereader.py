@@ -9,14 +9,14 @@ import torchvision.transforms as transforms
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-#from face_cnn import FaceCNN
+
 from cnn_model_v01 import cnn
 from globalcontrast import GCNorm
+
 trans = transforms.Compose([transforms.ToPILImage(), transforms.Resize((48, 48)),
                             transforms.Grayscale(), GCNorm()])
-#face_cnn = FaceCNN()
+
 face_cnn = cnn()
-#face_cnn.load_state_dict(torch.load('best_binary.pth'))
 face_cnn.load_state_dict(torch.load('cnn_model_v01_trainingWeights.pt'))
 face_cnn.eval()
 
