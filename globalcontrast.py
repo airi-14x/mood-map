@@ -1,5 +1,6 @@
 import numpy as np
 import torch
+
 def global_contrast_normalization(img, s, lmda, epsilon):
     # img is already a numpy array
     X = img
