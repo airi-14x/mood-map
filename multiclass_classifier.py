@@ -243,8 +243,8 @@ def compute_validation_loss(valModel, validate_loader, criterion):
     total = 0
     correct = 0
 
-    # classifications_matrix = np.zeros((NUM_CLASSES, NUM_CLASSES))
-    # classifications_matrix = classifications_matrix.astype(int)
+    confusion_matrix = np.zeros((NUM_CLASSES, NUM_CLASSES))
+    confusion_matrix = confusion_matrix.astype(int)
 
     val_loss = 0
     n_iter = 0
@@ -269,8 +269,8 @@ def compute_validation_loss(valModel, validate_loader, criterion):
         # del(outputs)
         # del(loss)
 
-        # for j in range(len(targets)):
-        #     classifications_matrix[targets[j]][predicted[j]] += 1
+        for j in range(len(targets)):
+            confusion_matrix[targets[j]][predicted[j]] += 1
 
         # if i == 0:
         #     print("First val batch: total={}, correct = {}, predicted={}, target={}".format(total, correct, predicted, targets))
@@ -280,10 +280,10 @@ def compute_validation_loss(valModel, validate_loader, criterion):
     epoch_loss = val_loss/n_iter
     accuracy = 100 * float(correct)/total
     # print('Accuracy on the validation set: {}%'.format(100 * correct/total))
-    # print(classifications_matrix)
+    # print(confusion_matrix)
     # for i in range(NUM_CLASSES):
-    #     print("Accuracy of {}'s: {}".format(i, classifications_matrix[i][i] /sum(classifications_matrix[i])))
-    return [epoch_loss, accuracy]
+    #     print("Accuracy of {}'s: {}".format(i, confusion_matrix[i][i] /sum(confusion_matrix[i])))
+    return [epoch_loss, accuracy, confusion_matrix]
 
 ############################################################
 #
@@ -351,7 +351,7 @@ def train_model(model, optimizer, criterion,
         #del(outputs)
 
         # Compute validation metrics (loss, accuracy)
-        val_loss, val_accuracy = compute_validation_loss(model, validate_loader, criterion)
+        val_loss, val_accuracy, confusion_matrix = compute_validation_loss(model, validate_loader, criterion)
         model.train()
 
         elapsedTime = time.time() - t0
@@ -373,9 +373,11 @@ def train_model(model, optimizer, criterion,
         
         # Save learning curve and accuracy plots every 5 epochs (checkpoint)
         if (epoch + 1) % 5 == 0:
-            make_plots(training_losses, validation_losses, training_accuracies, validation_accuracies, show_graph=False, epoch_num=epoch + 1)
+            make_plots(training_losses, validation_losses, training_accuracies, validation_accuracies, 
+                show_graph=False, epoch_num=epoch + 1)
             torch.save(model.state_dict(), "tmp/trainingWeights_epoch_{}.pt".format(epoch + 1))
-            save_checkpoint(model, epoch, training_losses, validation_losses, training_accuracies, validation_accuracies, elapsedTime)
+            save_checkpoint(model, epoch, training_losses, validation_losses, training_accuracies, 
+                validation_accuracies, confusion_matrix, elapsedTime)
 
 
     print()
@@ -403,7 +405,7 @@ def train_model(model, optimizer, criterion,
 ############################################################
 
 def save_checkpoint(model, epoch, training_losses, validation_losses,
-    training_accuracies, validation_accuracies, training_time):
+    training_accuracies, validation_accuracies, confusion_matrix, training_time):
     checkpoint_dict = {
         'state_dict':model.state_dict(),
         'epoch': epoch,
@@ -411,6 +413,7 @@ def save_checkpoint(model, epoch, training_losses, validation_losses,
         'validation_losses': validation_losses,
         'training_accuracies': training_accuracies,
         'validation_accuracies': validation_accuracies,
+        'confusion_matrix' : confusion_matrix,
         'training_time': training_time
     }
 
@@ -487,7 +490,7 @@ def main():
     #model = resnet18_mod()
     #from model2 import cnn_model
     #from model_JostineHo import cnn_model
-    from best_cnn_model import cnn_model
+    from model3 import cnn_model
     model = cnn_model()
 
     if use_gpu:
