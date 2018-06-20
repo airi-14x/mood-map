@@ -6,6 +6,8 @@ import pickle
 import numpy as np
 import pandas as pd
 
+import matplotlib
+matplotlib.use("Agg") # use other backend for images?? 
 import matplotlib.pyplot as plt
 from matplotlib.pyplot import cm 
 
@@ -19,12 +21,12 @@ import torchvision.transforms as transforms
 
 from globalcontrast import GCNorm
 
-TRAIN_DATA_DIR = "C:/Users/Anya/Documents/ai4good/face-emotion-analysis/fer2013/Data_Images_Facial_Expressions/Training_Others_Small/"
-VALIDATE_DATA_DIR = "C:/Users/Anya/Documents/ai4good/face-emotion-analysis/fer2013/Data_Images_Facial_Expressions/PrivateTest_Others/"
-TMP_DIR = "C:/Users/Anya/Documents/ai4good/face-emotion-analysis/tmp/"
+TRAIN_DATA_DIR = "../Data_Images_Facial_Expressions/Training_Others/"
+VALIDATE_DATA_DIR = "../Data_Images_Facial_Expressions/PrivateTest_Others/"
+TMP_DIR = "tmp/"
 
 NUM_CLASSES = 6 #(we are excluding disgust class)
-BATCH_SIZE = 100
+BATCH_SIZE = 128
 
 IMAGE_WIDTH = 48
 IMAGE_HEIGHT = 48
@@ -34,8 +36,12 @@ STRIDE = 1
 PADDING = 2
 KERNEL_SIZE_POOL = 2
 
-LEARNING_RATE = 0.02
-NUM_EPOCHS=2
+#LEARNING_RATE = 0.01
+LEARNING_RATE = 0.0001
+NUM_EPOCHS=300
+
+use_gpu = torch.cuda.is_available()
+print("GPU Available: {}".format(use_gpu))
 
 # TODO:
 #       implement weighted max / loss function? to account for uneven training class sizes
@@ -56,16 +62,26 @@ NUM_EPOCHS=2
 # transform = transforms.ToTensor()
 
 def load_data():
-    transform = transforms.Compose([
+    transform_train = transforms.Compose([
         transforms.Grayscale(),
-        transforms.ToTensor()])
+        transforms.RandomAffine(degrees=(-15, 15), scale=(0.8, 1.2)),
+        transforms.Resize((IMAGE_HEIGHT, IMAGE_WIDTH)),
+        transforms.RandomHorizontalFlip(p=0.5),
+        GCNorm()
+    ])
 
-    train_data = torchvision.datasets.ImageFolder(TRAIN_DATA_DIR, transform=transform)
+    transform_validate = transforms.Compose([
+        transforms.Grayscale(),
+        transforms.Resize((IMAGE_HEIGHT, IMAGE_WIDTH)),
+        GCNorm()
+    ])
+
+    train_data = torchvision.datasets.ImageFolder(TRAIN_DATA_DIR, transform=transform_train)
     train_loader = torch.utils.data.DataLoader(train_data, batch_size=BATCH_SIZE, shuffle=True)
     classes = train_data.classes
     print("Train data classes: {}".format(train_data.classes))
 
-    validate_data = torchvision.datasets.ImageFolder(VALIDATE_DATA_DIR, transform=transform)
+    validate_data = torchvision.datasets.ImageFolder(VALIDATE_DATA_DIR, transform=transform_validate)
     validate_loader = torch.utils.data.DataLoader(validate_data, batch_size=BATCH_SIZE, shuffle=True)
     print("Validate data classes: {}".format(validate_data.classes))
 
@@ -139,25 +155,25 @@ class cnn(nn.Module):
             nn.Dropout(p=0.7)
         )
 
-        # self.block4 = nn.Sequential(
-        #     nn.Conv2d(in_channels = 128,
-        #         out_channels = 256,
-        #         kernel_size = KERNEL_SIZE_CONV,
-        #         stride = STRIDE,
-        #         padding = PADDING))
-        #     # No pooling layer this time
+        self.block4 = nn.Sequential(
+            nn.Conv2d(in_channels = 128,
+                out_channels = 256,
+                kernel_size = KERNEL_SIZE_CONV,  # now image is 6/2 = 3
+                stride = STRIDE,
+                padding = PADDING))
+            # No pooling layer this time
 
         self.block5 = nn.Sequential(
-            nn.Linear(4608, 1000),
-            nn.Linear(1000, NUM_CLASSES)    # in=6*6*64=2304, out=6 (6 possible emotions)
+            nn.Linear(9216, 1000),
+            nn.Linear(1000, NUM_CLASSES)    # in=6*6*256=9216, out=6 (6 possible emotions)
         )
 
     def forward(self, x):
         out = self.block1(x)
         out = self.block2(out)
         out = self.block3(out)
-        # out = self.block4(out)
-        out = out.view(-1, 4608)   # flatten for nn.Linear
+        out = self.block4(out)
+        out = out.view(-1, 9216)   # flatten for nn.Linear
         return self.block5(out)
 
 ############################################################
@@ -170,7 +186,7 @@ def optimizer_and_criterion(model):
     print("learning rate = {}".format(LEARNING_RATE))
     print("batch size = {}".format(BATCH_SIZE))
 
-    optimizer = optim.SGD(model.parameters(), lr=LEARNING_RATE) # Use Adam() or SGD()
+    optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE, weight_decay=1e-03) # Use Adam() or SGD()
     criterion = nn.CrossEntropyLoss() # lost / cost function
 
     return [optimizer, criterion]
@@ -208,9 +224,9 @@ def make_plots(training_losses, validation_losses, training_accuracies, validati
     plot_accuracies(training_accuracies, validation_accuracies)
     fig = plt.gcf()
     if epoch_num == None:
-        fig.savefig("tmp/plot-checkpoint-final.png")
+        fig.savefig("tmp/graphs_final.png")
     else:
-        fig.savefig("tmp/plot-checkpoint-{}-epochs.png".format(epoch_num))
+        fig.savefig("tmp/graphs_epoch_{}.png".format(epoch_num))
     if show_graph:
         plt.show()
 
@@ -234,6 +250,10 @@ def compute_validation_loss(valModel, validate_loader, criterion):
     n_iter = 0
 
     for i, (images, targets) in enumerate(validate_loader):
+        
+        if use_gpu:
+            images = images.cuda()
+            targets = targets.cuda()
 
         # Forward pass
         outputs = valModel(images)
@@ -297,6 +317,11 @@ def train_model(model, optimizer, criterion,
         correct = 0
 
         for images, targets in train_loader:
+            
+
+            if use_gpu:
+                images = images.cuda()
+                targets = targets.cuda()
 
             # Reset (zero) the gradient buffer
             optimizer.zero_grad()
@@ -350,8 +375,7 @@ def train_model(model, optimizer, criterion,
         if (epoch + 1) % 5 == 0:
             make_plots(training_losses, validation_losses, training_accuracies, validation_accuracies, show_graph=False, epoch_num=epoch + 1)
             torch.save(model.state_dict(), "tmp/trainingWeights_epoch_{}.pt".format(epoch + 1))
-
-        save_checkpoint(model, epoch, training_losses, validation_losses, training_accuracies, validation_accuracies, elapsedTime)
+            save_checkpoint(model, epoch, training_losses, validation_losses, training_accuracies, validation_accuracies, elapsedTime)
 
 
     print()
@@ -390,7 +414,7 @@ def save_checkpoint(model, epoch, training_losses, validation_losses,
         'training_time': training_time
     }
 
-    pickle.dump(checkpoint_dict, open(os.path.join(TMP_DIR, "checkpoint.pth"), "wb"))
+    pickle.dump(checkpoint_dict, open(os.path.join(TMP_DIR, "checkpoint_epoch_{}.pth".format(epoch + 1)), "wb"))
 
 ############################################################
 #
@@ -413,6 +437,10 @@ def evaluate(model, validate_loader, criterion, classes):
     correct = 0
 
     for i, (images, targets) in enumerate(validate_loader):
+        
+        if use_gpu:
+            images = images.cuda()
+            targets = targets.cuda()
 
         # Forward pass
         outputs = model(images)
@@ -450,13 +478,35 @@ def main():
     train_loader, validate_loader, classes = load_data()
 
     # Define model
-    model = cnn()
+    #model = cnn()
+    #from model import anne_model
+    #model = anne_model()
+    #from model2 import cnn
+    #model = cnn()
+    #from resnet_model import resnet18_mod
+    #model = resnet18_mod()
+    #from model2 import cnn_model
+    #from model_JostineHo import cnn_model
+    from best_cnn_model import cnn_model
+    model = cnn_model()
+
+    if use_gpu:
+        model.cuda()
+
+    # resume learning
+    model.load_state_dict(torch.load("tmp/model3/trainingWeights_epoch_70.pt"))
 
     # Define optimizer and criterion
     optimizer, criterion = optimizer_and_criterion(model)
 
+    checkpoint = pickle.load(open("tmp/model3/checkpoint_epoch_70.pth", "rb"))
+
     # Train the model and plot learning curve and accuracies
-    model = train_model(model, optimizer, criterion, train_loader, validate_loader)
+    # model = train_model(model, optimizer, criterion, train_loader, validate_loader)
+    model = train_model(model, optimizer, criterion, train_loader, validate_loader, 
+        checkpoint['training_losses'], checkpoint['validation_losses'], 
+        checkpoint['training_accuracies'], checkpoint['validation_accuracies'], num_epochs_trained=70)
+
 
     # Evaluate the model
     evaluate(model, validate_loader, criterion, classes)
