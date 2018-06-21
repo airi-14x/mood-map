@@ -9,7 +9,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from cnn_model_v01 import cnn
+from model3 import cnn_model
 from globalcontrast import GCNorm
 
 trans = transforms.Compose([transforms.ToPILImage(), transforms.Resize((48, 48)),
@@ -17,13 +17,13 @@ trans = transforms.Compose([transforms.ToPILImage(), transforms.Resize((48, 48))
 
 labels = ["Angry", "Afraid", "Happy", "Sad", "Surprised", "Neutral"]
 
-face_cnn = cnn()
-face_cnn.load_state_dict(torch.load('cnn_model_v01_trainingWeights.pt'))
+face_cnn = cnn_model()
+face_cnn.load_state_dict(torch.load('trainingWeights_epoch_150.pt',map_location=lambda storage, loc: storage))
 face_cnn.eval()
 
-conf = .5  # hard coded confidence in a face detection.
+conf = .6  # hard coded confidence in a face detection.
 
-# load deep net. 
+# load deep net.
 net = cv2.dnn.readNetFromCaffe("deploy.prototxt.txt", "model.caffemodel")
 
 vs = VideoStream(src=0).start()
@@ -35,7 +35,7 @@ while True:
     frame = vs.read()
     frame = imutils.resize(frame, width=600)
     #print("Shape: {}".format(frame.shape)) 450, 600, 3
- 
+
     # convert to a blob
     (h, w) = frame.shape[:2]
     #print("Height: {} Width: {}".format(h,w)) 450, 600
@@ -79,7 +79,7 @@ while True:
                     cv2.FONT_HERSHEY_TRIPLEX, 0.45, (0, 255, 255), 1)
 
     cv2.imshow("Frame", frame)
-	
+
     key = cv2.waitKey(1) & 0xFF
     if key == ord("q"):
         break
