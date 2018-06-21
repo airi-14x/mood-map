@@ -21,7 +21,7 @@ face_cnn = cnn_model()
 face_cnn.load_state_dict(torch.load('trainingWeights_epoch_150.pt',map_location=lambda storage, loc: storage))
 face_cnn.eval()
 
-conf = .5  # hard coded confidence in a face detection.
+conf = .6  # hard coded confidence in a face detection.
 
 # load deep net.
 net = cv2.dnn.readNetFromCaffe("deploy.prototxt.txt", "model.caffemodel")
